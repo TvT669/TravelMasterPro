@@ -40,7 +40,7 @@ struct TravelMasterProApp: App {
            let apiKey = UserDefaults.standard.string(forKey: "openai_api_key") ?? ""
            
            // 初始化LLM服务
-           self.llmService = LLMService(apiKey: apiKey)
+           self.llmService = LLMService()
            
            // 初始化智能体
            self.generalAgent = GeneralAgent.create(llm: llmService)

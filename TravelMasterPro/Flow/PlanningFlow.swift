@@ -7,247 +7,234 @@
 
 import Foundation
 
+/// 旅行规划工作流 - 任务总指挥
+/// 负责"做什么"和"怎么组织"
 class PlanningFlow: Flow {
-    let primaryAgent: Agent
-    let agents: [String: Agent]
-    private let planningTool: PlanningTool
-    private var activePlanId: String?
+    let name: String = "TravelPlanningFlow"
+    
+    // 智能体团队
+    private let primaryAgent: Agent  // 主要规划师
+    private let agents: [String: Agent]  // 专业智能体团队
+    
+    // 状态管理
+    @Published private(set) var status: FlowStatus = .idle
+    private var currentTasks: [SimpleTask] = []
+    private var sharedContext: [String: Any] = [:]
     
     init(primaryAgent: Agent, agents: [String: Agent]) {
         self.primaryAgent = primaryAgent
         self.agents = agents
-        self.planningTool = PlanningTool()
-        
-        // 确保每个智能体的工具集包含规划工具
-        for (_, agent) in agents {
-            if let baseAgent = agent as? BaseAgent {
-                if !(baseAgent.tools.contains(where: { $0 is PlanningTool })) {
-                    // 添加规划工具 (这需要BaseAgent的tools属性是可变的)
-                    // 这里假设BaseAgent提供了一个添加工具的方法
-                }
-            }
-        }
     }
     
-    func execute(request: String) async throws -> String {
-        // 生成计划ID
-        activePlanId = "plan_\(UUID().uuidString)"
+    // MARK: - Flow 协议实现
+    
+    func execute(request: String) async throws -> FlowResult {
+        let startTime = Date()
+        status = .planning
         
-        // 创建初始计划
-        try await createInitialPlan(request: request)
-        
-        // 执行计划
-        var results: [String] = []
-        var currentStep = 0
-        
-        while let step = try await getNextStep() {
-            // 获取步骤类型和内容
-            let (stepType, stepContent) = extractTypeFromStep(step)
+        do {
+            // 1. 智能任务分解
+            let tasks = try await decomposeTasks(request)
+            currentTasks = tasks
             
-            // 获取合适的执行智能体
-            let executor = getExecutor(stepType: stepType)
+            status = .executing
             
-            // 标记步骤为进行中
-            try await markStepInProgress(stepIndex: currentStep)
+            // 2. 执行任务
+            let results = try await executeTasks(tasks)
             
-            // 执行步骤
-            let stepResult = try await executeStep(
-                agent: executor,
-                stepContent: stepContent,
-                stepIndex: currentStep
+            // 3. 整合结果
+            let finalOutput = synthesizeResults(results)
+            
+            status = .completed
+            let executionTime = Date().timeIntervalSince(startTime)
+            
+            return FlowResult(
+                success: true,
+                output: finalOutput,
+                executionTime: executionTime,
+                tasksCompleted: tasks.count,
+                metadata: ["context": sharedContext]
             )
             
-            // 保存结果
-            results.append(stepResult)
-            
-            // 标记步骤为已完成
-            try await markStepCompleted(stepIndex: currentStep)
-            
-            currentStep += 1
+        } catch {
+            status = .failed(error.localizedDescription)
+            throw error
         }
-        
-        // 获取最终结果
-        let finalResult = try await finalizePlan()
-        results.append(finalResult)
-        
-        return results.joined(separator: "\n\n")
     }
     
-    // 创建初始计划
-    private func createInitialPlan(request: String) async throws {
-        guard let planId = activePlanId else { return }
+    func cancel() async {
+        status = .cancelled
+        currentTasks.removeAll()
+        sharedContext.removeAll()
+    }
+    
+    func getProgress() -> FlowProgress {
+        let total = currentTasks.count
+        let completed = currentTasks.filter { $0.status == .completed }.count
         
-        // 使用主智能体创建计划
-        let planPrompt = """
-        请为以下请求创建一个执行计划，将任务分解为具体步骤：
+        return FlowProgress(
+            currentTask: currentTasks.first { $0.status == .running }?.description,
+            percentage: total > 0 ? Double(completed) / Double(total) : 0.0,
+            estimatedTimeRemaining: nil
+        )
+    }
+    
+    // MARK: - 私有实现方法
+    
+    /// 智能任务分解
+    private func decomposeTasks(_ request: String) async throws -> [SimpleTask] {
+        let decompositionPrompt = """
+        作为旅行规划专家，请将以下用户请求分解为具体的执行任务：
         
-        \(request)
+        用户请求：\(request)
         
-        对于每个步骤，请添加类型标记，如：
-        1. [GENERAL] 分析需求
-        2. [DATA] 处理数据
-        3. [GENERAL] 生成报告
+        可用的智能体类型：
+        - flight: 航班搜索和预订
+        - hotel: 酒店搜索和预订  
+        - route: 路线规划和导航
+        - budget: 预算分析和管理
+        - general: 通用任务处理
+        
+        请按以下格式返回任务列表（每行一个任务）：
+        1. [flight] 搜索北京到上海的航班
+        2. [hotel] 查找上海市中心的酒店
+        3. [budget] 计算总体旅行预算
+        
+        只返回任务列表，不要其他说明。
         """
         
-        // 将规划请求发送给主智能体
-        let planResult = try await primaryAgent.run(request: planPrompt)
-        
-        // 解析步骤
-        let steps = parseSteps(from: planResult)
-        
-        // 创建计划
-        _ = try await planningTool.execute(arguments: [
-            "command": "create",
-            "plan_id": planId,
-            "title": "Plan for: \(request)",
-            "steps": steps
-        ])
+        let response = try await primaryAgent.run(request: decompositionPrompt)
+        return parseTasks(response)
     }
     
-    // 获取下一个未完成的步骤
-    private func getNextStep() async throws -> String? {
-        guard let planId = activePlanId else { return nil }
+    /// 解析任务列表
+    private func parseTasks(_ response: String) -> [SimpleTask] {
+        let lines = response.components(separatedBy: .newlines)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         
-        let planResult = try await planningTool.execute(arguments: [
-            "command": "get",
-            "plan_id": planId
-        ])
+        return lines.enumerated().compactMap { index, line in
+            // 解析格式: "1. [agent] description"
+            let pattern = #"\d+\.\s*\[(\w+)\]\s*(.+)"#
+            
+            if let regex = try? NSRegularExpression(pattern: pattern),
+               let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) {
+                
+                let agentRange = Range(match.range(at: 1), in: line)!
+                let descriptionRange = Range(match.range(at: 2), in: line)!
+                
+                let agentType = String(line[agentRange])
+                let description = String(line[descriptionRange])
+                
+                return SimpleTask(
+                    id: "task_\(index + 1)",
+                    type: TaskType(rawValue: agentType) ?? .general,
+                    description: description,
+                    assignedAgent: agentType,
+                    status: .pending,
+                    result: nil
+                )
+            }
+            
+            return nil
+        }
+    }
+    
+    /// 执行任务列表
+    private func executeTasks(_ tasks: [SimpleTask]) async throws -> [String] {
+        var results: [String] = []
         
-        guard let planOutput = planResult.output else { return nil }
-        
-        // 解析计划输出以获取下一个未完成的步骤
-        // 这里简化处理，实际实现可能需要更复杂的解析
-        let lines = planOutput.split(separator: "\n")
-        
-        for line in lines {
-            if line.contains("◯") {  // 未开始的步骤
-                // 提取步骤内容
-                if let stepContent = line.split(separator: "◯").last?.trimmingCharacters(in: .whitespaces) {
-                    return stepContent
-                }
+        for var task in tasks {
+            // 获取负责的智能体
+            guard let agent = agents[task.assignedAgent] else {
+                throw FlowError.agentNotFound(task.assignedAgent)
+            }
+            
+            // 检查智能体能力
+            let requiredCapability = mapTaskTypeToCapability(task.type)
+            if let capability = requiredCapability, !agent.isCapableOf(capability) {
+                throw FlowError.invalidConfiguration
+            }
+            
+            // 设置共享上下文
+            agent.setSharedContext(sharedContext)
+            
+            // 执行任务
+            task.status = .running
+            updateTaskInList(&task)
+            
+            do {
+                let result = try await agent.run(request: task.description)
+                
+                task.status = .completed
+                task.result = result
+                updateTaskInList(&task)
+                
+                results.append(result)
+                
+                // 更新共享上下文
+                mergeContext(from: agent.getSharedContext())
+                sharedContext["task_\(task.id)_result"] = result
+                
+            } catch {
+                task.status = .failed
+                updateTaskInList(&task)
+                throw FlowError.executionTimeout
             }
         }
         
-        return nil  // 没有更多步骤
+        return results
     }
     
-    // 执行步骤
-    private func executeStep(agent: Agent, stepContent: String, stepIndex: Int) async throws -> String {
-        // 获取计划状态
-        guard let planId = activePlanId else {
-            return "计划ID不存在"
+    /// 整合结果
+    private func synthesizeResults(_ results: [String]) -> String {
+        if results.isEmpty {
+            return "没有完成任何任务"
         }
         
-        let planResult = try await planningTool.execute(arguments: [
-            "command": "get",
-            "plan_id": planId
-        ])
+        if results.count == 1 {
+            return results.first!
+        }
         
-        let planStatus = planResult.output ?? "计划状态未知"
+        return """
+        ## 旅行规划结果
         
-        // 构建步骤提示
-        let stepPrompt = """
-        当前计划状态:
-        \(planStatus)
+        \(results.enumerated().map { index, result in
+            "### 步骤 \(index + 1)\n\(result)"
+        }.joined(separator: "\n\n"))
         
-        你的当前任务:
-        你正在执行步骤 \(stepIndex + 1): "\(stepContent)"
-        
-        请完成这个步骤并报告结果。
+        ## 总结
+        已成功完成 \(results.count) 个任务的旅行规划。
         """
-        
-        // 执行步骤
-        return try await agent.run(request: stepPrompt)
     }
     
-    // 标记步骤为进行中
-    private func markStepInProgress(stepIndex: Int) async throws {
-        guard let planId = activePlanId else { return }
-        
-        _ = try await planningTool.execute(arguments: [
-            "command": "mark_step",
-            "plan_id": planId,
-            "step_index": stepIndex,
-            "step_status": "in_progress"
-        ])
-    }
+    // MARK: - 辅助方法
     
-    // 标记步骤为已完成
-    private func markStepCompleted(stepIndex: Int) async throws {
-        guard let planId = activePlanId else { return }
-        
-        _ = try await planningTool.execute(arguments: [
-            "command": "mark_step",
-            "plan_id": planId,
-            "step_index": stepIndex,
-            "step_status": "completed"
-        ])
-    }
-    
-    // 完成计划
-    private func finalizePlan() async throws -> String {
-        guard let planId = activePlanId else {
-            return "计划ID不存在"
+    private func mapTaskTypeToCapability(_ taskType: TaskType) -> AgentCapability? {
+        switch taskType {
+        case .flight:
+            return .flightSearch
+        case .hotel:
+            return .hotelBooking
+        case .route:
+            return .routePlanning
+        case .budget:
+            return .budgetPlanning
+        case .general:
+            return .textGeneration
         }
-        
-        let planResult = try await planningTool.execute(arguments: [
-            "command": "get",
-            "plan_id": planId
-        ])
-        
-        return "任务已完成。总结:\n\(planResult.output ?? "")"
     }
     
-    // 从步骤中提取类型
-    private func extractTypeFromStep(_ step: String) -> (String, String) {
-        // 查找形如 [TYPE] 的标记
-        let pattern = "\\[(\\w+)\\]\\s*(.*)"
-        let regex = try? NSRegularExpression(pattern: pattern, options: [])
-        
-        if let match = regex?.firstMatch(
-            in: step,
-            options: [],
-            range: NSRange(location: 0, length: step.utf16.count)
-        ) {
-            let typeRange = Range(match.range(at: 1), in: step)!
-            let contentRange = Range(match.range(at: 2), in: step)!
-            
-            let type = String(step[typeRange])
-            let content = String(step[contentRange])
-            
-            return (type.uppercased(), content)
+    private func updateTaskInList(_ updatedTask: inout SimpleTask) {
+        if let index = currentTasks.firstIndex(where: { $0.id == updatedTask.id }) {
+            currentTasks[index] = updatedTask
         }
-        
-        // 没有类型标记，返回默认类型
-        return ("GENERAL", step)
     }
     
-    // 获取执行智能体
-    private func getExecutor(stepType: String) -> Agent {
-        return agents[stepType.lowercased()] ?? primaryAgent
-    }
-    
-    // 从文本解析步骤
-    private func parseSteps(from text: String) -> [String] {
-        var steps: [String] = []
-        let lines = text.split(separator: "\n")
-        
-        for line in lines {
-            // 查找形如 "1. [TYPE] 步骤内容" 的行
-            let pattern = "\\d+\\.\\s*\\[?\\w*\\]?\\s*(.*)"
-            let regex = try? NSRegularExpression(pattern: pattern, options: [])
-            
-            if let match = regex?.firstMatch(
-                in: String(line),
-                options: [],
-                range: NSRange(location: 0, length: line.utf16.count)
-            ) {
-                if let range = Range(match.range(at: 0), in: line) {
-                    steps.append(String(line[range]))
-                }
+    private func mergeContext(from agentContext: [String: Any]) {
+        for (key, value) in agentContext {
+            if !key.hasPrefix("last_") { // 只合并非临时数据
+                sharedContext[key] = value
             }
         }
-        
-        return steps.isEmpty ? ["分析问题", "执行任务", "验证结果"] : steps
     }
 }

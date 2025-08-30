@@ -23,7 +23,7 @@ struct ContentView: View {
                             ForEach(chatMessages) { message in
                                 MessageView(message: message)
                                     .id(message.id)
-                            }
+                            };
                             
                             if appState.isLoading {
                                 HStack {
@@ -36,7 +36,7 @@ struct ContentView: View {
                         }
                         .padding()
                     }
-                    .onChange(of: chatMessages.count) { _ in
+                    .onChange(of: chatMessages.count) {
                         if let lastMessage = chatMessages.last {
                             scrollView.scrollTo(lastMessage.id)
                         }

@@ -7,25 +7,35 @@
 
 import Foundation
 
-class GeneralAgent: BaseAgent {
-    static let systemPrompt = """
-    你是一个通用智能助手。你可以使用多种工具来解决问题。
-    当你需要执行特定操作时，请使用提供给你的工具。
-    如果需要搜索信息、执行计算或其他操作，请明确表明你将使用哪些工具。
-    """
+/// 通用智能体 - 多功能SUV
+/// 集成了文本生成、基础分析等通用功能
+class GeneralAgent: ToolCallAgent {
     
     static func create(llm: LLMService) -> GeneralAgent {
-        // 创建通用工具集
+        let systemPrompt = """
+        你是一个通用智能助手，具备以下能力：
+        1. 文本生成和编辑
+        2. 问题解答
+        3. 数据分析
+        4. 任务规划
+        
+        你可以处理各种类型的请求，如果需要专业工具支持，请使用相应的工具。
+        """
+        
         let tools: [Tool] = [
-            CalculatorTool(),
-            WebSearchTool(),
-            FileOperatorTool(),
-            TerminateTool()
+            
+            PlanningTool()
+        ]
+        
+        let capabilities: [AgentCapability] = [
+            .textGeneration,
+            .dataAnalysis
         ]
         
         return GeneralAgent(
             name: "GeneralAgent",
             systemPrompt: systemPrompt,
+            capabilities: capabilities,
             tools: tools,
             llm: llm
         )

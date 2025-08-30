@@ -13,15 +13,30 @@ class LLMService {
     private let baseURL: URL
     private let model: String
     private let urlSession: URLSession
+    private let maxTokens: Int
+       private let temperature: Double
     
-    init(apiKey: String, baseURL: String = "https://api.openai.com/v1", model: String = "gpt-4") {
-        self.apiKey = apiKey
-        self.baseURL = URL(string: baseURL)!
-        self.model = model
+    init() {
+        // 从 AIConfig.plist 加载配置
+        guard let configPath = Bundle.main.path(forResource: "AIConfig", ofType: "plist"),
+              let config = NSDictionary(contentsOfFile: configPath) as? [String: Any],
+              let apiKey = config["API_KEY"] as? String,
+              let baseURLString = config["BASE_URL"] as? String,
+              let model = config["MODEL"] as? String,
+              let maxTokens = config["MAX_TOKENS"] as? Int,
+              let temperature = config["TEMPERATURE"] as? Double else {
+            fatalError("AIConfig.plist 配置错误")
+        }
         
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 120
-        self.urlSession = URLSession(configuration: config)
+        self.apiKey = apiKey
+        self.baseURL = URL(string: baseURLString)!
+        self.model = model
+        self.maxTokens = maxTokens
+        self.temperature = temperature
+        
+        let sessionConfig = URLSessionConfiguration.default  // 重命名避免冲突
+        sessionConfig.timeoutIntervalForRequest = 120
+        self.urlSession = URLSession(configuration: sessionConfig)
     }
     
     func askTool(messages: [Message], systemMessages: [Message]? = nil, tools: [[String: Any]]? = nil, toolChoice: ToolChoice = .auto) async throws -> (content: String?, toolCalls: [ToolCall]?) {
@@ -33,6 +48,7 @@ class LLMService {
         var requestBody: [String: Any] = [
             "model": model,
             "messages": allMessages.map { formatMessage($0) },
+            "max_tokens": maxTokens,
             "temperature": 0.7
         ]
         
@@ -95,6 +111,8 @@ class LLMService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+          
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
         let (data, response) = try await urlSession.data(for: request)

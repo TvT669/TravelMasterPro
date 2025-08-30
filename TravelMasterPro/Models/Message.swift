@@ -32,6 +32,11 @@ struct Message: Identifiable, Codable {
         return Message(role: .system, content: content, toolCallId: nil, name: nil, base64Image: nil, timestamp: Date())
     }
     
+    
+      static func assistantMessage(_ content: String) -> Message {
+          return Message(role: .assistant, content: content, toolCallId: nil, name: nil, base64Image: nil, timestamp: Date())
+      }
+    
     static func toolMessage(content: String, toolCallId: String, name: String, base64Image: String? = nil) -> Message {
         return Message(role: .tool, content: content, toolCallId: toolCallId, name: name, base64Image: base64Image, timestamp: Date())
     }
@@ -63,3 +68,5 @@ enum AgentState {
     case finished
     case error(String)
 }
+
+
