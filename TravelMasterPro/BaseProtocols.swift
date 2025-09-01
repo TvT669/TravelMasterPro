@@ -36,6 +36,7 @@ enum AgentCapability: String, CaseIterable {
     case textGeneration = "text_generation"
     case dataAnalysis = "data_analysis"
     case webSearch = "web_search"
+    case travelPlanning = "travel_planning" 
 }
 
 /// 智能体状态

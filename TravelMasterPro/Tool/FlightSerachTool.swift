@@ -11,27 +11,54 @@ class FlightSearchTool: BaseTool {
     private let amadeus: AmadeusService
     
     init() {
-        // 初始化 Amadeus 服务
         self.amadeus = AmadeusService()
         
-        // ✅ 使用新版本 BaseTool 的构造器
         super.init(
             name: "flight_search",
             description: "搜索航班信息，筛选低价和免费行李额的最优航班",
             parameters: [
-                "origin": .string("出发地机场代码或城市名"),
-                "destination": .string("目的地机场代码或城市名"),
-                "departure_date": .string("出发日期 (YYYY-MM-DD 格式)"),
-                "return_date": .string("返程日期 (YYYY-MM-DD 格式)，单程时可选"),
-                "adults": .number("成人数量"),
-                "travel_class": .string("舱位等级", enumValues: ["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"]),
-                "max_price": .number("最高价格（人民币）"),
-                "prefer_free_baggage": .string("是否优先选择免费行李额航班", enumValues: ["true", "false"])
+                "origin": ParameterDefinition(
+                    type: "string",
+                    description: "出发地机场代码或城市名",
+                    enumValues: nil // ✅ 设为 nil，不会生成 enum 字段
+                ),
+                "destination": ParameterDefinition(
+                    type: "string",
+                    description: "目的地机场代码或城市名",
+                    enumValues: nil
+                ),
+                "departure_date": ParameterDefinition(
+                    type: "string",
+                    description: "出发日期 (YYYY-MM-DD 格式)",
+                    enumValues: nil
+                ),
+                "return_date": ParameterDefinition(
+                    type: "string",
+                    description: "返程日期 (YYYY-MM-DD 格式)，单程时可选",
+                    enumValues: nil
+                ),
+                "travel_class": ParameterDefinition.string(
+                    "舱位等级",
+                    enumValues: ["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"]
+                ),
+                "adults": ParameterDefinition(
+                    type: "number",
+                    description: "成人数量",
+                    enumValues: nil
+                ),
+                "max_price": ParameterDefinition(
+                    type: "number",
+                    description: "最高价格（人民币）",
+                    enumValues: nil
+                ),
+                "prefer_free_baggage": ParameterDefinition.string(
+                    "是否优先选择免费行李额航班",
+                    enumValues: ["true", "false"]
+                )
             ],
             requiredParameters: ["origin", "destination", "departure_date"]
         )
     }
-    
     // ✅ 重写 executeImpl 而不是 execute
     override func executeImpl(arguments: [String: Any]) async throws -> ToolResult {
         // 使用 BaseTool 提供的参数获取方法
@@ -163,12 +190,7 @@ class FlightSearchTool: BaseTool {
     }
 }
 
-// 字符串扩展
-extension String {
-    func repeated(count: Int) -> String {
-        return String(repeating: self, count: count)
-    }
-}
+
 
 // MARK: - Amadeus 服务
 

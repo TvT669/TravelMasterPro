@@ -147,7 +147,7 @@ class ToolCallAgent: Agent {
                 memory.addMessage(Message.toolMessage(
                     content: resultContent,
                     toolCallId: call.id,
-                    name: call.function.name
+                    toolName: call.function.name
                 ))
                 
                 // 更新共享上下文
@@ -159,7 +159,7 @@ class ToolCallAgent: Agent {
                 memory.addMessage(Message.toolMessage(
                     content: errorMsg,
                     toolCallId: call.id,
-                    name: call.function.name
+                    toolName: call.function.name
                 ))
             }
         }

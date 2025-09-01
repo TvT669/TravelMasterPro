@@ -15,17 +15,54 @@ class BudgetAnalyzerTool: BaseTool {
             name: "budget_analyzer",
             description: "分析旅行预算，计算各项费用，提供预算优化建议和消费提醒",
             parameters: [
-                "destination": .string("目的地城市或国家"),
-                "duration": .number("旅行天数"),
-                "travelers": .number("旅行人数"),
-                "accommodation_type": .string("住宿类型", enumValues: ["budget", "mid_range", "luxury", "hostel", "apartment"]),
-                "meal_preference": .string("用餐偏好", enumValues: ["budget", "mid_range", "fine_dining", "mixed"]),
-                "activity_level": .string("活动强度", enumValues: ["low", "medium", "high"]),
-                "transportation_mode": .string("主要交通方式", enumValues: ["flight", "train", "bus", "car", "mixed"]),
-                "budget_constraint": .number("预算上限（人民币）"),
-                "currency": .string("目的地货币代码", enumValues: ["CNY", "USD", "EUR", "JPY", "GBP", "AUD", "THB", "SGD"]),
-                "include_shopping": .string("是否包含购物预算", enumValues: ["true", "false"]),
-                "travel_season": .string("旅行季节", enumValues: ["spring", "summer", "autumn", "winter", "peak", "off_peak"])
+                "destination": ParameterDefinition(
+                    type: "string",
+                    description: "目的地城市或国家",
+                    enumValues: nil
+                ),
+                "duration": ParameterDefinition(
+                    type: "number",
+                    description: "旅行天数",
+                    enumValues: nil
+                ),
+                "travelers": ParameterDefinition(
+                    type: "number",
+                    description: "旅行人数",
+                    enumValues: nil
+                ),
+                "budget_constraint": ParameterDefinition(
+                    type: "number",
+                    description: "预算上限（人民币）",
+                    enumValues: nil
+                ),
+                "accommodation_type": ParameterDefinition.string(
+                    "住宿类型",
+                    enumValues: ["budget", "mid_range", "luxury", "hostel", "apartment"]
+                ),
+                "transportation_mode": ParameterDefinition.string(
+                    "主要交通方式",
+                    enumValues: ["flight", "train", "bus", "car", "mixed"]
+                ),
+                "meal_preference": ParameterDefinition.string(
+                    "用餐偏好",
+                    enumValues: ["budget", "mid_range", "fine_dining", "mixed"]
+                ),
+                "activity_level": ParameterDefinition.string(
+                    "活动强度",
+                    enumValues: ["low", "medium", "high"]
+                ),
+                "travel_season": ParameterDefinition.string(
+                    "旅行季节",
+                    enumValues: ["spring", "summer", "autumn", "winter", "peak", "off_peak"]
+                ),
+                "currency": ParameterDefinition.string(
+                    "目的地货币代码",
+                    enumValues: ["CNY", "USD", "EUR", "JPY", "GBP", "AUD", "THB", "SGD"]
+                ),
+                "include_shopping": ParameterDefinition.string(
+                    "是否包含购物预算",
+                    enumValues: ["true", "false"]
+                )
             ],
             requiredParameters: ["destination", "duration", "travelers"]
         )
