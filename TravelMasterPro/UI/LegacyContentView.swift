@@ -1,13 +1,14 @@
 //
-//  ContentView.swift
+//  LegacyContentView.swift
 //  TravelMasterPro
 //
-//  Created by 珠穆朗玛小蜜蜂 on 2025/8/29.
+//  Created by 珠穆朗玛小蜜蜂 on 2025/9/2.
 //
 
 import SwiftUI
 
-struct ContentView: View {
+/// AI 智能助手界面 
+struct LegacyContentView: View {
     @EnvironmentObject var appState: AppState
     @State private var userInput = ""
     @State private var chatMessages: [DisplayMessage] = []
@@ -61,7 +62,7 @@ struct ContentView: View {
                     )
                 }
             }
-            .navigationTitle("TravelMaster Pro")
+            .navigationTitle("AI 旅行助手")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarLeading) {
@@ -79,7 +80,7 @@ struct ContentView: View {
                                 .foregroundColor(.orange)
                         }
                         
-                        NavigationLink(destination: SettingsView()) {
+                        NavigationLink(destination: SettingView()) {
                             Image(systemName: "gear")
                                 .foregroundColor(.blue)
                         }
@@ -106,7 +107,6 @@ struct ContentView: View {
                     }
                 )
             }
-            // ✅ 监听响应变化
             .onChange(of: appState.response) { _, newResponse in
                 if !newResponse.isEmpty {
                     addAssistantMessage(newResponse)
@@ -164,7 +164,6 @@ struct ContentView: View {
         withAnimation(.easeInOut(duration: 0.5)) {
             chatMessages.removeAll()
         }
-        // ✅ 清空 AppState 中的响应
         appState.response = ""
     }
 }
@@ -273,10 +272,6 @@ struct WelcomeView: View {
                     .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: isAnimating)
                 
                 VStack(spacing: 8) {
-                    Text("✈️ 欢迎使用 TravelMaster Pro")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .multilineTextAlignment(.center)
                     
                     Text("您的专业AI旅行规划助手")
                         .font(.subheadline)
@@ -752,9 +747,6 @@ extension QuickAction.Category: CaseIterable {
         }
     }
 }
-
-
 #Preview {
-    ContentView()
-        .environmentObject(AppState())
+    LegacyContentView()
 }

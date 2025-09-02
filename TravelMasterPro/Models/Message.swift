@@ -19,6 +19,12 @@ struct Message: Identifiable, Codable, Equatable {
     // 可选的扩展属性
     var metadata: MessageMetadata?
     
+    enum Role: String, Codable {
+          case user = "user"
+          case assistant = "assistant"
+          case system = "system"
+      }
+    
     // MARK: - 初始化器
     
     init(
